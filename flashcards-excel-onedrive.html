@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flashcards Technologie — 3ème</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0e17; --surface: #1a1828; --card: #211f33;
+    --accent: #a78bfa; --accent2: #3de8c8; --accent3: #ff6b35; --accent4: #f7c59f;
+    --text: #fffffe; --muted: #a7a9be; --border: rgba(255,255,255,0.08);
+    --correct: #3de8c8; --wrong: #ff6b35;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'Syne',sans-serif; min-height:100vh; overflow-x:hidden; }
+  body::before {
+    content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background-image: linear-gradient(rgba(167,139,250,0.03) 1px,transparent 1px), linear-gradient(90deg,rgba(167,139,250,0.03) 1px,transparent 1px);
+    background-size: 40px 40px;
+  }
+  .app { position:relative; z-index:1; }
+
+  /* ── HEADER ── */
+  header {
+    padding:16px 32px; display:flex; align-items:center; justify-content:space-between;
+    border-bottom:1px solid var(--border); position:sticky; top:0;
+    background:rgba(15,14,23,0.93); backdrop-filter:blur(12px); z-index:100; flex-wrap:wrap; gap:10px;
+  }
+  .logo { display:flex; align-items:center; gap:10px; }
+  .logo-icon {
+    width:30px; height:30px; background:linear-gradient(135deg,var(--accent3),var(--accent));
+    clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+    display:grid; place-items:center; font-size:13px;
+  }
+  .logo-text { font-size:16px; font-weight:800; }
+  .logo-sub { font-family:'DM Mono',monospace; font-size:9px; color:var(--muted); letter-spacing:2px; }
+  .header-stats { display:flex; gap:18px; font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); }
+  .stat-item { display:flex; flex-direction:column; align-items:center; gap:1px; }
+  .stat-val { font-size:17px; font-weight:600; color:var(--text); }
+  .stat-val.green { color:var(--correct); }
+  .stat-val.orange { color:var(--wrong); }
+
+  /* ── SETUP PANEL ── */
+  #setupPanel {
+    max-width:600px; margin:60px auto; padding:0 20px;
+  }
+  .setup-card {
+    background:var(--card); border:1px solid var(--border); border-radius:14px; padding:40px;
+  }
+  .setup-title { font-size:22px; font-weight:800; margin-bottom:8px; }
+  .setup-sub { font-family:'DM Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:1px; margin-bottom:28px; }
+
+  .steps { display:flex; flex-direction:column; gap:20px; margin-bottom:32px; }
+  .step { display:flex; gap:14px; align-items:flex-start; }
+  .step-num {
+    width:28px; height:28px; border-radius:50%; background:var(--accent); color:#fff;
+    display:grid; place-items:center; font-size:12px; font-weight:800; flex-shrink:0;
+  }
+  .step-body { flex:1; }
+  .step-title { font-size:14px; font-weight:700; margin-bottom:4px; }
+  .step-desc { font-size:12px; color:var(--muted); line-height:1.5; }
+  .step-desc code {
+    background:rgba(167,139,250,0.15); color:var(--accent); padding:1px 6px;
+    border-radius:3px; font-family:'DM Mono',monospace; font-size:11px;
+  }
+
+  .input-group { display:flex; flex-direction:column; gap:8px; margin-bottom:16px; }
+  .input-label { font-size:12px; font-weight:700; color:var(--muted); letter-spacing:1px; font-family:'DM Mono',monospace; }
+  .url-input {
+    background:var(--surface); border:1px solid var(--border); border-radius:7px;
+    padding:12px 16px; color:var(--text); font-family:'DM Mono',monospace; font-size:12px;
+    width:100%; outline:none; transition:border-color 0.2s;
+  }
+  .url-input:focus { border-color:var(--accent); }
+  .url-input::placeholder { color:var(--muted); opacity:0.5; }
+
+  .btn-load {
+    width:100%; padding:14px; background:var(--accent); color:#fff; border:none;
+    border-radius:8px; font-family:'Syne',sans-serif; font-size:15px; font-weight:800;
+    cursor:pointer; transition:all 0.2s; letter-spacing:0.3px;
+  }
+  .btn-load:hover { background:#c4b5fd; transform:translateY(-1px); box-shadow:0 8px 24px rgba(167,139,250,0.3); }
+  .btn-load:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
+
+  .error-box {
+    background:rgba(255,107,53,0.1); border:1px solid rgba(255,107,53,0.3);
+    border-radius:8px; padding:12px 16px; color:var(--wrong); font-size:13px;
+    font-family:'DM Mono',monospace; margin-top:12px; display:none;
+  }
+
+  /* ── LOADING ── */
+  #loadingPanel { display:none; text-align:center; padding:80px 20px; }
+  .spinner {
+    width:40px; height:40px; border:3px solid var(--border); border-top-color:var(--accent);
+    border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 20px;
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .loading-text { font-family:'DM Mono',monospace; color:var(--muted); font-size:13px; }
+
+  /* ── MAIN APP ── */
+  #mainApp { display:none; }
+  main { max-width:860px; margin:0 auto; padding:28px 18px; }
+
+  /* THEME PILLS */
+  .themes-wrap { margin-bottom:22px; }
+  .themes-label { font-family:'DM Mono',monospace; font-size:10px; letter-spacing:2px; color:var(--muted); text-transform:uppercase; margin-bottom:10px; }
+  .themes-grid { display:flex; flex-wrap:wrap; gap:7px; }
+  .theme-btn {
+    background:var(--surface); border:1px solid var(--border); color:var(--muted);
+    padding:7px 14px; border-radius:5px; cursor:pointer; font-family:'Syne',sans-serif;
+    font-size:12px; font-weight:600; transition:all 0.2s; display:flex; align-items:center; gap:6px;
+    white-space:nowrap;
+  }
+  .theme-btn:hover { color:var(--text); border-color:rgba(255,255,255,0.2); }
+  .theme-btn.active { color:var(--text); background:rgba(255,255,255,0.07); border-color:rgba(255,255,255,0.25); }
+  .theme-dot { width:8px; height:8px; border-radius:50%; }
+
+  /* PROGRESS */
+  .progress-wrap { background:var(--surface); height:3px; border-radius:2px; margin-bottom:22px; overflow:hidden; }
+  .progress-fill { height:100%; background:linear-gradient(90deg,var(--accent3),var(--accent)); border-radius:2px; transition:width 0.5s cubic-bezier(0.4,0,0.2,1); }
+
+  /* CARD */
+  .card-area { perspective:1400px; min-height:280px; margin-bottom:16px; }
+  .flashcard {
+    width:100%; min-height:280px; position:relative;
+    transform-style:preserve-3d; transition:transform 0.55s cubic-bezier(0.4,0,0.2,1); cursor:pointer;
+  }
+  .flashcard.flipped { transform:rotateY(180deg); }
+  .card-face {
+    position:absolute; width:100%; min-height:280px; backface-visibility:hidden;
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:40px 34px 34px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;
+  }
+  .card-face::before {
+    content:''; position:absolute; top:0; left:0; right:0; height:3px;
+    border-radius:14px 14px 0 0; background:var(--accent);
+  }
+  .card-face.back { transform:rotateY(180deg); }
+  .card-face.back::before { background:var(--accent2); }
+
+  .card-meta { position:absolute; top:13px; left:17px; right:17px; display:flex; justify-content:space-between; align-items:center; }
+  .card-theme-tag {
+    font-family:'DM Mono',monospace; font-size:9px; letter-spacing:1.5px; text-transform:uppercase;
+    padding:3px 8px; border-radius:3px; font-weight:500; max-width:65%;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    background:rgba(167,139,250,0.12); color:var(--accent);
+  }
+  .card-num { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); }
+  .card-side-label { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-bottom:14px; opacity:0.6; }
+  .card-question { font-size:19px; font-weight:700; line-height:1.45; max-width:640px; }
+  .card-answer { font-size:15px; font-weight:400; line-height:1.75; max-width:640px; color:var(--text); }
+  .flip-hint { position:absolute; bottom:13px; right:17px; font-family:'DM Mono',monospace; font-size:9px; color:var(--muted); opacity:0.4; }
+
+  /* SCORE */
+  .score-area { display:flex; gap:10px; justify-content:center; margin-bottom:14px; min-height:40px; align-items:center; opacity:0; pointer-events:none; transition:opacity 0.3s 0.1s; }
+  .score-area.visible { opacity:1; pointer-events:all; }
+
+  /* CONTROLS */
+  .controls { display:flex; gap:7px; justify-content:center; margin-bottom:18px; flex-wrap:wrap; }
+  .btn { padding:10px 18px; border-radius:6px; border:none; font-family:'Syne',sans-serif; font-size:13px; font-weight:700; cursor:pointer; transition:all 0.18s; display:flex; align-items:center; gap:5px; }
+  .btn-prev,.btn-shuffle { background:var(--surface); color:var(--muted); border:1px solid var(--border); }
+  .btn-prev:hover,.btn-shuffle:hover { color:var(--text); border-color:rgba(255,255,255,0.2); }
+  .btn-next { background:var(--accent3); color:#fff; }
+  .btn-next:hover { background:#ff8555; transform:translateY(-1px); }
+  .btn-flip { background:transparent; color:var(--accent); border:1px solid var(--accent); }
+  .btn-flip:hover { background:rgba(167,139,250,0.1); }
+  .btn-reload { background:var(--surface); color:var(--muted); border:1px solid var(--border); font-size:11px; }
+  .btn-reload:hover { color:var(--text); }
+  .btn-know { background:rgba(61,232,200,0.1); color:var(--correct); border:1px solid var(--correct); padding:10px 18px; font-size:13px; }
+  .btn-know:hover { background:rgba(61,232,200,0.22); }
+  .btn-dontknow { background:rgba(255,107,53,0.1); color:var(--wrong); border:1px solid var(--wrong); padding:10px 18px; font-size:13px; }
+  .btn-dontknow:hover { background:rgba(255,107,53,0.22); }
+
+  /* DOTS */
+  .card-dots { display:flex; flex-wrap:wrap; gap:5px; justify-content:center; max-width:700px; margin:0 auto 24px; }
+  .card-dot { width:8px; height:8px; border-radius:50%; background:var(--muted); opacity:0.2; cursor:pointer; transition:all 0.2s; }
+  .card-dot.current { opacity:1!important; transform:scale(1.6); background:var(--accent)!important; }
+  .card-dot.known { background:var(--correct)!important; opacity:0.9!important; }
+  .card-dot.unknown { background:var(--wrong)!important; opacity:0.9!important; }
+
+  .shortcuts { text-align:center; font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); opacity:0.4; margin-bottom:16px; }
+  kbd { background:var(--surface); border:1px solid rgba(255,255,255,0.1); border-radius:3px; padding:1px 5px; font-size:10px; }
+
+  .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(60px); background:#2a2840; border:1px solid var(--border); padding:10px 20px; border-radius:8px; font-family:'DM Mono',monospace; font-size:12px; color:var(--text); transition:transform 0.3s; z-index:999; white-space:nowrap; pointer-events:none; }
+  .toast.show { transform:translateX(-50%) translateY(0); }
+
+  @media(max-width:540px){
+    header{padding:12px 14px;}
+    .setup-card{padding:28px 20px;}
+    .card-face{padding:36px 16px 32px;}
+    .card-question{font-size:16px;}
+    .card-answer{font-size:13px;}
+    .btn{padding:9px 12px;font-size:12px;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">⚙</div>
+    <div>
+      <div class="logo-text">Flashcards Technologie</div>
+      <div class="logo-sub">CHARGEMENT DEPUIS EXCEL ONEDRIVE</div>
+    </div>
+  </div>
+  <div class="header-stats" id="headerStats" style="display:none">
+    <div class="stat-item"><span class="stat-val" id="stat-total">0</span><span>cartes</span></div>
+    <div class="stat-item"><span class="stat-val green" id="stat-known">0</span><span>sus</span></div>
+    <div class="stat-item"><span class="stat-val orange" id="stat-unknown">0</span><span>à revoir</span></div>
+  </div>
+</header>
+
+<!-- ── SETUP ── -->
+<div id="setupPanel">
+  <div class="setup-card">
+    <div class="setup-title">📂 Connexion au fichier Excel</div>
+    <div class="setup-sub">ONEDRIVE / SHAREPOINT</div>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">Préparez votre fichier Excel</div>
+          <div class="step-desc">
+            Créez un fichier <code>.xlsx</code> avec 3 colonnes :<br>
+            <code>A : Thématique</code> &nbsp; <code>B : Question</code> &nbsp; <code>C : Réponse</code><br>
+            La ligne 1 peut être un en-tête (elle sera ignorée automatiquement).
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">Partagez le fichier sur OneDrive</div>
+          <div class="step-desc">
+            Ouvrez le fichier sur <strong>OneDrive</strong> → clic droit → <strong>Partager</strong>
+            → <em>"Toute personne disposant du lien peut consulter"</em> → Copier le lien.
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">Collez le lien ci-dessous</div>
+          <div class="step-desc">
+            Le lien ressemble à : <code>https://1drv.ms/x/s!A...</code><br>
+            ou <code>https://onedrive.live.com/...</code>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-group">
+      <div class="input-label">Lien de partage OneDrive</div>
+      <input type="url" class="url-input" id="urlInput"
+        placeholder="https://1drv.ms/x/s!A…  ou  https://onedrive.live.com/…" />
+    </div>
+
+    <button class="btn-load" id="btnLoad" onclick="loadFromOneDrive()">
+      ⬇ Charger les flashcards
+    </button>
+    <div class="error-box" id="errorBox"></div>
+  </div>
+</div>
+
+<!-- ── LOADING ── -->
+<div id="loadingPanel">
+  <div class="spinner"></div>
+  <div class="loading-text">Chargement du fichier Excel…</div>
+</div>
+
+<!-- ── MAIN APP ── -->
+<div id="mainApp">
+  <main>
+    <div class="themes-wrap">
+      <div class="themes-label">Thématique</div>
+      <div class="themes-grid" id="themeGrid"></div>
+    </div>
+
+    <div class="progress-wrap"><div class="progress-fill" id="progressBar" style="width:0%"></div></div>
+
+    <div class="card-area">
+      <div class="flashcard" id="flashcard" onclick="flipCard()">
+        <div class="card-face front" id="cardFront">
+          <div class="card-meta">
+            <span class="card-theme-tag" id="cardThemeTag">—</span>
+            <span class="card-num" id="cardNum">—</span>
+          </div>
+          <div class="card-side-label">Question</div>
+          <div class="card-question" id="cardQuestion">Chargement…</div>
+          <div class="flip-hint">↺ cliquer pour retourner</div>
+        </div>
+        <div class="card-face back">
+          <div class="card-meta">
+            <span class="card-theme-tag" id="cardThemeTag2">—</span>
+          </div>
+          <div class="card-side-label">Réponse</div>
+          <div class="card-answer" id="cardAnswer">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="score-area" id="scoreArea">
+      <button class="btn btn-dontknow" onclick="markCard(false)">✗ À revoir</button>
+      <button class="btn btn-know" onclick="markCard(true)">✓ Je sais</button>
+    </div>
+
+    <div class="controls">
+      <button class="btn btn-prev" onclick="prevCard()">← Préc.</button>
+      <button class="btn btn-flip" onclick="flipCard()">↺ Retourner</button>
+      <button class="btn btn-next" onclick="nextCard()">Suiv. →</button>
+      <button class="btn btn-shuffle" onclick="shuffleCards()">⇄ Mélanger</button>
+      <button class="btn btn-reload" onclick="resetToSetup()">⟳ Changer de fichier</button>
+    </div>
+
+    <div class="shortcuts"><kbd>←</kbd> <kbd>→</kbd> naviguer &nbsp;|&nbsp; <kbd>Espace</kbd> retourner &nbsp;|&nbsp; <kbd>Entrée</kbd> "Je sais"</div>
+    <div class="card-dots" id="cardDots"></div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+</div>
+
+<!-- SheetJS pour lire le fichier Excel -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+
+// ── Palette de couleurs pour les thèmes dynamiques ──
+const PALETTE = [
+  '#a78bfa','#3de8c8','#ff6b35','#f7c59f',
+  '#60a5fa','#f472b6','#34d399','#fbbf24',
+  '#e879f9','#38bdf8','#fb7185','#a3e635'
+];
+
+// ── État global ──
+let allCards      = [];
+let currentCards  = [];
+let currentIndex  = 0;
+let isFlipped     = false;
+let scores        = {};
+let selectedTheme = 'Tous';
+let themeColors   = {};
+
+// ═══════════════════════════════════════════════════
+// CONVERSION DU LIEN ONEDRIVE EN URL DE TÉLÉCHARGEMENT
+// ═══════════════════════════════════════════════════
+function convertOneDriveUrl(rawUrl) {
+  rawUrl = rawUrl.trim();
+
+  // Déjà une URL directe de téléchargement
+  if (rawUrl.includes('download=1') || rawUrl.includes('&download=')) return rawUrl;
+
+  // Lien court 1drv.ms → on passe par l'API embed
+  if (rawUrl.includes('1drv.ms') || rawUrl.includes('onedrive.live.com')) {
+    // Encode en base64 url-safe
+    let b64 = btoa(rawUrl).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    return `https://api.onedrive.com/v1.0/shares/u!${b64}/root/content`;
+  }
+
+  // Lien SharePoint standard
+  // https://<tenant>.sharepoint.com/:x:/…  →  remplacer ":x:/" par le paramètre download
+  if (rawUrl.includes('sharepoint.com')) {
+    // Essai de construction du lien download direct
+    let url = rawUrl.split('?')[0];
+    return url + '?download=1';
+  }
+
+  return rawUrl;
+}
+
+// ═══════════════════════════════════════════════════
+// CHARGEMENT DU FICHIER
+// ═══════════════════════════════════════════════════
+async function loadFromOneDrive() {
+  const raw = document.getElementById('urlInput').value.trim();
+  if (!raw) { showError("Veuillez coller un lien OneDrive."); return; }
+
+  showError('');
+  document.getElementById('btnLoad').disabled = true;
+  showPanel('loading');
+
+  const downloadUrl = convertOneDriveUrl(raw);
+
+  try {
+    const response = await fetch(downloadUrl);
+    if (!response.ok) throw new Error(`Erreur HTTP ${response.status} — vérifiez que le lien est bien en accès public.`);
+
+    const arrayBuffer = await response.arrayBuffer();
+    const workbook    = XLSX.read(arrayBuffer, { type: 'array' });
+
+    // Première feuille
+    const sheetName = workbook.SheetNames[0];
+    const sheet     = workbook.Sheets[sheetName];
+    const rows      = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+    // Parsing : col A=thème, B=question, C=réponse
+    // On ignore la ligne 1 si c'est un en-tête (contient "thème" ou "question" en insensible casse)
+    let startRow = 0;
+    const firstRow = rows[0] || [];
+    const firstCell = String(firstRow[0] || '').toLowerCase();
+    if (firstCell.includes('th') || firstCell.includes('question') || firstCell === '') startRow = 1;
+
+    const parsed = [];
+    for (let i = startRow; i < rows.length; i++) {
+      const row = rows[i];
+      const theme    = String(row[0] || '').trim();
+      const question = String(row[1] || '').trim();
+      const reponse  = String(row[2] || '').trim();
+      if (theme && question && reponse) {
+        parsed.push({ theme, q: question, a: reponse });
+      }
+    }
+
+    if (parsed.length === 0) throw new Error("Aucune donnée trouvée. Vérifiez que votre fichier contient des données dans les colonnes A, B et C.");
+
+    allCards = parsed;
+    buildThemeColors();
+    showPanel('app');
+    filterCards('Tous');
+    document.getElementById('headerStats').style.display = 'flex';
+    showToast(`✓ ${allCards.length} flashcards chargées !`);
+
+  } catch (err) {
+    showPanel('setup');
+    document.getElementById('btnLoad').disabled = false;
+    showError(`❌ ${err.message}`);
+  }
+}
+
+function buildThemeColors() {
+  const themes = [...new Set(allCards.map(c => c.theme))];
+  themes.forEach((t, i) => {
+    themeColors[t] = PALETTE[i % PALETTE.length];
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// PANELS
+// ═══════════════════════════════════════════════════
+function showPanel(name) {
+  document.getElementById('setupPanel').style.display   = name === 'setup'   ? 'block' : 'none';
+  document.getElementById('loadingPanel').style.display = name === 'loading' ? 'block' : 'none';
+  document.getElementById('mainApp').style.display      = name === 'app'     ? 'block' : 'none';
+}
+
+function resetToSetup() {
+  allCards = []; currentCards = []; scores = {}; themeColors = {};
+  document.getElementById('headerStats').style.display = 'none';
+  document.getElementById('btnLoad').disabled = false;
+  showError('');
+  showPanel('setup');
+}
+
+// ═══════════════════════════════════════════════════
+// THEME GRID
+// ═══════════════════════════════════════════════════
+function buildThemeGrid() {
+  const grid   = document.getElementById('themeGrid');
+  grid.innerHTML = '';
+  const themes = [...new Set(allCards.map(c => c.theme))];
+
+  // Bouton "Tous"
+  const allBtn = document.createElement('button');
+  allBtn.className = 'theme-btn' + (selectedTheme === 'Tous' ? ' active' : '');
+  allBtn.innerHTML = `<span class="theme-dot" style="background:linear-gradient(135deg,#ff6b35,#a78bfa)"></span>Tous (${allCards.length})`;
+  allBtn.onclick = () => filterCards('Tous');
+  grid.appendChild(allBtn);
+
+  themes.forEach(t => {
+    const count = allCards.filter(c => c.theme === t).length;
+    const btn   = document.createElement('button');
+    btn.className = 'theme-btn' + (selectedTheme === t ? ' active' : '');
+    btn.innerHTML = `<span class="theme-dot" style="background:${themeColors[t]}"></span>${t} (${count})`;
+    btn.onclick = () => filterCards(t);
+    grid.appendChild(btn);
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// FILTER & RENDER
+// ═══════════════════════════════════════════════════
+function filterCards(key) {
+  selectedTheme = key;
+  currentCards  = key === 'Tous' ? [...allCards] : allCards.filter(c => c.theme === key);
+  currentIndex  = 0; isFlipped = false;
+
+  buildThemeGrid();
+
+  const bar = document.getElementById('progressBar');
+  bar.style.background = key === 'Tous'
+    ? 'linear-gradient(90deg,#ff6b35,#a78bfa,#3de8c8)'
+    : themeColors[key] || 'var(--accent)';
+
+  renderCard(); renderDots(); updateStats();
+}
+
+function renderCard() {
+  if (!currentCards.length) return;
+  const card  = currentCards[currentIndex];
+  const color = themeColors[card.theme] || 'var(--accent)';
+
+  // Top bars
+  document.querySelectorAll('.card-face').forEach(f => f.style.setProperty('--bar', color));
+  document.querySelectorAll('.card-face::before');
+
+  // Patch top bar via inline style on pseudo — utiliser outline trick
+  document.getElementById('cardFront').style.borderTopColor  = color;
+  document.getElementById('cardFront').style.setProperty('--bar-color', color);
+
+  // Tags
+  [document.getElementById('cardThemeTag'), document.getElementById('cardThemeTag2')].forEach(el => {
+    el.textContent = card.theme;
+    el.style.color = color;
+    el.style.background = color + '22';
+  });
+
+  document.getElementById('cardNum').textContent      = `${currentIndex + 1} / ${currentCards.length}`;
+  document.getElementById('cardQuestion').textContent = card.q;
+  document.getElementById('cardAnswer').textContent   = card.a;
+
+  document.getElementById('flashcard').classList.remove('flipped');
+  document.getElementById('scoreArea').classList.remove('visible');
+  isFlipped = false;
+
+  const pct = currentCards.length > 1 ? (currentIndex / (currentCards.length - 1)) * 100 : 100;
+  document.getElementById('progressBar').style.width = pct + '%';
+}
+
+function renderDots() {
+  const container = document.getElementById('cardDots');
+  container.innerHTML = '';
+  currentCards.forEach((c, i) => {
+    const dot = document.createElement('div');
+    dot.className = 'card-dot';
+    const key = c.theme + '::' + c.q;
+    const col = themeColors[c.theme] || '#a78bfa';
+
+    if (i === currentIndex)              { dot.classList.add('current'); dot.style.background = col; }
+    else if (scores[key] === 'known')    { dot.classList.add('known'); }
+    else if (scores[key] === 'unknown')  { dot.classList.add('unknown'); }
+    else                                 { dot.style.background = col; dot.style.opacity = '0.2'; }
+
+    dot.title   = `Carte ${i + 1}`;
+    dot.onclick = () => { currentIndex = i; isFlipped = false; renderCard(); renderDots(); };
+    container.appendChild(dot);
+  });
+}
+
+function updateStats() {
+  document.getElementById('stat-total').textContent   = allCards.length;
+  document.getElementById('stat-known').textContent   = Object.values(scores).filter(v => v === 'known').length;
+  document.getElementById('stat-unknown').textContent = Object.values(scores).filter(v => v === 'unknown').length;
+}
+
+// ═══════════════════════════════════════════════════
+// ACTIONS
+// ═══════════════════════════════════════════════════
+function flipCard() {
+  isFlipped = !isFlipped;
+  document.getElementById('flashcard').classList.toggle('flipped', isFlipped);
+  if (isFlipped) document.getElementById('scoreArea').classList.add('visible');
+}
+
+function nextCard() {
+  if (currentIndex < currentCards.length - 1) currentIndex++;
+  else { currentIndex = 0; showToast('🔁 Retour au début !'); }
+  isFlipped = false; renderCard(); renderDots();
+}
+
+function prevCard() {
+  if (currentIndex > 0) { currentIndex--; isFlipped = false; renderCard(); renderDots(); }
+}
+
+function markCard(known) {
+  const key = currentCards[currentIndex].theme + '::' + currentCards[currentIndex].q;
+  scores[key] = known ? 'known' : 'unknown';
+  updateStats(); renderDots();
+  showToast(known ? '✓ Bien joué !' : '↺ À revoir');
+  setTimeout(nextCard, 450);
+}
+
+function shuffleCards() {
+  for (let i = currentCards.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [currentCards[i], currentCards[j]] = [currentCards[j], currentCards[i]];
+  }
+  currentIndex = 0; isFlipped = false; renderCard(); renderDots();
+  showToast('⇄ Cartes mélangées !');
+}
+
+function showError(msg) {
+  const box = document.getElementById('errorBox');
+  box.textContent = msg; box.style.display = msg ? 'block' : 'none';
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+document.addEventListener('keydown', e => {
+  if (document.getElementById('mainApp').style.display === 'none') return;
+  if (e.key === 'ArrowRight') nextCard();
+  if (e.key === 'ArrowLeft')  prevCard();
+  if (e.key === ' ')          { e.preventDefault(); flipCard(); }
+  if (e.key === 'Enter' && isFlipped) markCard(true);
+});
+
+// Permettre la touche Entrée dans le champ URL
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('urlInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') loadFromOneDrive();
+  });
+  showPanel('setup');
+});
+</script>
+</body>
+</html>
